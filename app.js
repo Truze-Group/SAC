@@ -1,4 +1,4 @@
-const API_URL = "https://apisac.truze.com.br";
+const API_URL = "https://api-sac.truze.com.br";
 
 const form = document.getElementById("sacForm");
 const statusEl = document.getElementById("status");
