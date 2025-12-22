@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SAC • Truze</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="container topbar__inner">
+      <div class="logo">
+        <img class="logo__img" src="https://www.truze.com.br/logo.png" alt="">
+      </div>
+
+      <nav class="nav">
+        <a class="nav__link" href="https://www.truze.com.br/" target="_blank" rel="noreferrer">Site</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero__left">
+        <h1 class="hero__title">
+          Suporte e
+          <span class="accent">Atendimento</span>
+          Inteligente
+        </h1>
+
+        <p class="hero__subtitle">
+          Envie um título, descreva o problema e, se quiser, anexe uma foto. O chamado cai automaticamente para o time.
+        </p>
+      </div>
+
+      <div class="hero__right">
+        <div class="card">
+          <div class="card__top">
+            <div class="traffic">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="card__chip">
+              <div class="chip__icon">🛟</div>
+              <div class="chip__text">
+                <div class="chip__label">NOVO CHAMADO</div>
+                <div class="chip__value">SAC • Truze</div>
+              </div>
+            </div>
+          </div>
+
+          <form id="sacForm" class="form" novalidate>
+            <div class="field">
+              <label for="title">Título</label>
+              <input id="title" name="title" type="text" placeholder="Ex: Erro ao acessar o painel" maxlength="120" required />
+              <small class="hint">Máx. 120 caracteres.</small>
+            </div>
+
+            <div class="field">
+              <label for="message">Mensagem</label>
+              <textarea id="message" name="message" rows="6" placeholder="Descreva o que aconteceu…" maxlength="2000" required></textarea>
+              <small class="hint">Máx. 2000 caracteres.</small>
+            </div>
+
+            <div class="field">
+              <label for="photo">Foto (opcional)</label>
+              <input id="photo" name="photo" type="file" accept="image/*" />
+              <small class="hint">PNG/JPG/WebP. Recomendado até ~8MB.</small>
+            </div>
+
+            <div id="preview" class="preview" hidden>
+                <div class="preview__meta">
+                    <span class="preview__title">Prévia</span>
+                    <button type="button" id="removePhoto" class="btn btn--ghost">
+                    Remover
+                    </button>
+                </div>
+
+                <img id="previewImg" alt="Prévia da imagem enviada" />
+            </div>
+
+            <div class="actions">
+              <button id="submitBtn" class="btn btn--primary" type="submit">
+                Enviar chamado →
+              </button>
+              <button class="btn btn--secondary" type="reset">
+                Limpar
+              </button>
+            </div>
+
+            <div id="status" class="status" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+
+    </section>
+
+    <footer class="footer">
+      <span>© <span id="year"></span> Truze</span>
+      <span class="dot">•</span>
+      <span>SAC</span>
+    </footer>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
