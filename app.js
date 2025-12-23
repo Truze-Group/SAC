@@ -11,6 +11,7 @@ const removePhotoBtn = document.getElementById("removePhoto");
 
 const titleEl = document.getElementById("title");
 const messageEl = document.getElementById("message");
+const clientEl = document.getElementById("client")
 
 document.getElementById("year").textContent = new Date().getFullYear();
 
@@ -36,11 +37,13 @@ function getSelectedFile() {
   return photoInput?.files?.[0] || null;
 }
 
-function validateInputs(title, message, file) {
+function validateInputs(title, message, file, client) {
   
   if (!API_URL) {
     return "Configure a API_URL";
   }
+
+  if(!client) return "Preencha empresa"
 
   if (!title || !message) return "Preencha título e mensagem.";
 
@@ -50,8 +53,8 @@ function validateInputs(title, message, file) {
 
   if (file) {
     if (!file.type.startsWith("image/")) return "A foto precisa ser um arquivo de imagem.";
-    const max = 8 * 1024 * 1024; // 8MB
-    if (file.size > max) return "A imagem está muito grande. Envie uma menor (até ~8MB).";
+    const max = 4 * 1024 * 1024; // 4 MB
+    if (file.size > max) return "A imagem está muito grande. Envie uma menor (até ~4MB).";
   }
 
   return null;
@@ -93,24 +96,27 @@ form?.addEventListener("submit", async (e) => {
   e.preventDefault();
   setStatus("");
 
+  const client = clientEl.value.trim();
   const title = titleEl.value.trim();
   const message = messageEl.value.trim();
   const file = getSelectedFile();
 
-  const err = validateInputs(title, message, file);
+  const err = validateInputs(title, message, file, client);
   if (err) {
     setStatus(err, "err");
     return;
   }
+
+  const title_client = client + "-" + title
 
   disableForm(true);
   setStatus("Enviando…");
 
   try {
     if (file) {
-      await sendWithPhoto(title, message, file);
+      await sendWithPhoto(title_client, message, file);
     } else {
-      await sendWithoutPhoto(title, message);
+      await sendWithoutPhoto(title_client, message);
     }
 
     setStatus("Chamado enviado com sucesso! ✅", "ok");
