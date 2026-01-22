@@ -1,0 +1,116 @@
+name: Pull Requests Notifications
+
+on:
+  pull_request:
+    types: [opened, closed]
+
+# Necessary permissions for GITHUB_TOKEN
+permissions:
+  pull-requests: write
+  contents: read
+
+env:
+  PROJECT_NAME: "Agencia"
+
+jobs:
+  # Opened PR notification
+  notify-pr-opened:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification - PR Opened
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            const embed = {
+              embeds: [{
+                title: "🔀 Novo Pull Request",
+                description: `**${pr.title}**`,
+                url: pr.html_url,
+                color: 1752220,
+                fields: [
+                  {
+                    name: "Autor",
+                    value: pr.user.login,
+                    inline: true
+                  },
+                  {
+                    name: "Branch",
+                    value: `\`${pr.head.ref}\` → \`${pr.base.ref}\``,
+                    inline: true
+                  },
+                  {
+                    name: "Projeto",
+                    value: process.env.PROJECT_NAME,
+                    inline: true
+                  }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }
+
+  # Merged PR notification
+  notify-pr-merged:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Discord Notification - PR Merged
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            const embed = {
+              embeds: [{
+                title: "✅ Pull Request Merged",
+                description: `**${pr.title}**`,
+                url: pr.html_url,
+                color: 10181046,
+                fields: [
+                  {
+                    name: "Merged por",
+                    value: pr.merged_by.login,
+                    inline: true
+                  },
+                  {
+                    name: "Branch destino",
+                    value: `\`${pr.base.ref}\``,
+                    inline: true
+                  },
+                  {
+                    name: "Projeto",
+                    value: process.env.PROJECT_NAME,
+                    inline: true
+                  }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }

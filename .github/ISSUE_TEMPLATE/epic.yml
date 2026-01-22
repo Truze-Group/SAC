@@ -1,0 +1,65 @@
+name: "🎯 Épico"
+description: "Criar um novo épico (agrupa múltiplas tarefas)"
+title: "[ÉPICO] "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Novo Épico
+        Épicos são tarefas maiores que agrupam múltiplas sub-tarefas relacionadas.
+
+  - type: textarea
+    id: descricao
+    attributes:
+      label: Descrição
+      description: Descreva detalhadamente o objetivo do épico
+      placeholder: |
+        Descreva o objetivo geral do épico, o contexto de negócio e como ele se conecta com a estratégia do produto.
+    validations:
+      required: true
+
+  - type: textarea
+    id: requisitos
+    attributes:
+      label: Requisitos
+      description: Liste os requisitos de alto nível do épico
+      placeholder: |
+        1. Requisito 1
+        2. Requisito 2
+        3. Requisito 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de Aceitação
+      description: Defina os critérios que determinam quando o épico está completo
+      placeholder: |
+        - [ ] Critério 1
+        - [ ] Critério 2
+        - [ ] Critério 3
+    validations:
+      required: false
+
+  - type: textarea
+    id: sub-issues
+    attributes:
+      label: Sub-issues Planejadas
+      description: Liste as tarefas que compõem este épico (podem ser adicionadas depois)
+      placeholder: |
+        - [ ] #123 - Tarefa 1
+        - [ ] #124 - Tarefa 2
+        - [ ] Tarefa ainda não criada
+    validations:
+      required: false
+
+  - type: textarea
+    id: contexto-adicional
+    attributes:
+      label: Contexto Adicional
+      description: Screenshots, links, referências ou qualquer informação extra
+      placeholder: Adicione aqui qualquer contexto adicional relevante
+    validations:
+      required: false

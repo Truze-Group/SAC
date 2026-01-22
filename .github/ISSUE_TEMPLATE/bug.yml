@@ -1,0 +1,67 @@
+name: "🐛 Bug"
+description: "Reportar um problema ou comportamento inesperado"
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Reportar Bug
+        Preencha os campos abaixo para reportar um problema.
+
+  - type: textarea
+    id: descricao
+    attributes:
+      label: Descrição
+      description: Descreva detalhadamente o problema encontrado
+      placeholder: |
+        O que está acontecendo? Qual era o comportamento esperado vs o comportamento atual?
+    validations:
+      required: true
+
+  - type: textarea
+    id: requisitos
+    attributes:
+      label: Requisitos para Correção
+      description: O que precisa ser feito para corrigir o problema?
+      placeholder: |
+        1. Investigar a causa raiz
+        2. Implementar a correção
+        3. Adicionar testes para prevenir regressão
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de Aceitação
+      description: Como saberemos que o bug foi corrigido?
+      placeholder: |
+        - [ ] O comportamento X funciona conforme esperado
+        - [ ] Não há regressão em Y
+    validations:
+      required: false
+
+  - type: textarea
+    id: passos-reproducao
+    attributes:
+      label: Passos para Reprodução
+      description: Como reproduzir o problema?
+      placeholder: |
+        1. Acesse a página X
+        2. Clique no botão Y
+        3. Observe o erro Z
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto-adicional
+    attributes:
+      label: Contexto Adicional
+      description: Screenshots, logs de erro, ambiente onde ocorreu
+      placeholder: |
+        - Browser/Device:
+        - Ambiente: (dev/staging/prod)
+        - Screenshots ou logs:
+    validations:
+      required: false

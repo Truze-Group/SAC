@@ -1,0 +1,512 @@
+name: Issues Validations and Notifications
+
+on:
+  issues:
+    types: [opened, closed, labeled, unlabeled]
+
+# Necessary permissions for GITHUB_TOKEN
+permissions:
+  issues: write
+  contents: read
+  pull-requests: read
+
+env:
+  PROJECT_NAME: "Agencia"
+
+jobs:
+  # ============================================
+  # VALIDATE REQUIRED FIELDS (on: opened)
+  # ============================================
+  validate-required-fields:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remind about required fields
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            const priorityLabels = ['P0', 'P1', 'P2', 'P3'];
+            const sizeLabels = ['XS', 'S', 'M', 'L', 'XL'];
+
+            const existingLabels = issue.labels.map(l => l.name);
+
+            const hasPriority = existingLabels.some(l => priorityLabels.includes(l));
+            const hasSize = existingLabels.some(l => sizeLabels.includes(l));
+
+            if (hasPriority && hasSize) {
+              console.log('Todos os campos obrigatórios já estão preenchidos');
+              return;
+            }
+
+            const missingFields = [];
+            if (!hasPriority) missingFields.push('**Prioridade** (P0, P1, P2, P3)');
+            if (!hasSize) missingFields.push('**Tamanho** (XS, S, M, L, XL)');
+
+            const reminderBody = `## 📋 Campos Obrigatórios
+
+            Por favor, adicione os seguintes campos para esta issue:
+
+            ${missingFields.map(f => `- ${f}`).join('\n')}
+
+            ### Como adicionar:
+
+            **Via Labels:** Adicione as labels correspondentes na barra lateral direita.
+
+            **Via Project Board:** Se a issue já está no board, preencha os campos customizados (Priority, Size, Start Date, Target Date).
+
+            ---
+
+            <details>
+            <summary>📌 Guia de Prioridades</summary>
+
+            | Label | Descrição |
+            |-------|-----------|
+            | P0 | Crítico - Bloqueia produção ou desenvolvimento |
+            | P1 | Alta - Deve ser resolvido no sprint atual |
+            | P2 | Média - Planejado para próximos sprints |
+            | P3 | Baixa - Nice to have, quando houver tempo |
+
+            </details>
+
+            <details>
+            <summary>📐 Guia de Tamanhos</summary>
+
+            | Label | Estimativa | Descrição |
+            |-------|------------|-----------|
+            | XS | ~1h | Mudança trivial, bem definida |
+            | S | ~2-4h | Tarefa pequena e clara |
+            | M | ~1-2 dias | Tarefa média, pode ter algumas incertezas |
+            | L | ~3-5 dias | Tarefa grande, considere quebrar em menores |
+            | XL | ~1+ semana | Épico ou tarefa muito complexa |
+
+            </details>`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: reminderBody
+            });
+
+  # ============================================
+  # BLOCKED ISSUE AUTOMATION (on: labeled 'blocked')
+  # ============================================
+  handle-blocked:
+    if: github.event.action == 'labeled' && github.event.label.name == 'blocked'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Add blocking reason template
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number
+            });
+
+            const hasBlockingComment = comments.data.some(comment =>
+              comment.body.includes('# Impedimento')
+            );
+
+            if (!hasBlockingComment) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `# Impedimento
+            Essa tarefa foi marcada como impedida.
+
+            ## Motivo
+            <!-- ✏️ EDITE ESTE COMENTÁRIO descrevendo o motivo do impedimento -->
+
+            **Tipo de bloqueio:**
+            - [ ] Aguardando entregas verticais (sub-issues)
+            - [ ] Dependência externa
+            - [ ] Aguardando definição/aprovação
+            - [ ] Problema técnico
+            - [ ] Outro
+
+            **Detalhes:**
+            > Descreva aqui o que está bloqueando esta tarefa
+
+            **Issues relacionadas:**
+            <!-- Liste as issues que bloqueiam esta, se houver -->
+
+            **Responsável pelo desbloqueio:** @
+            **Previsão de resolução:** DD/MM/YYYY`
+              });
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `⚠️ **Ação necessária de @${context.actor}:** Por favor, edite o comentário acima descrevendo o motivo do impedimento.`
+              });
+            }
+
+  # ============================================
+  # VALIDATE ISSUE CLOSURE (on: closed)
+  # ============================================
+  validate-closure:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate closure requirements
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const issueNumber = issue.number;
+
+            const isEpic = issue.title.toLowerCase().includes('[épico]') ||
+                          issue.title.toLowerCase().includes('[epico]') ||
+                          issue.labels.some(l => l.name.toLowerCase() === 'epic');
+
+            console.log(`Issue #${issueNumber} - Epic: ${isEpic}`);
+
+            if (isEpic) {
+              const body = issue.body || '';
+              const subIssueMatches = body.match(/#(\d+)/g) || [];
+              const uniqueSubIssues = [...new Set(subIssueMatches)];
+
+              console.log(`Sub-issues encontradas: ${uniqueSubIssues.join(', ')}`);
+
+              const openSubIssues = [];
+
+              for (const match of uniqueSubIssues) {
+                const subIssueNumber = parseInt(match.replace('#', ''));
+
+                if (subIssueNumber === issueNumber) continue;
+
+                try {
+                  const subIssue = await github.rest.issues.get({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: subIssueNumber
+                  });
+
+                  if (subIssue.data.state !== 'closed') {
+                    openSubIssues.push(`#${subIssueNumber} - ${subIssue.data.title}`);
+                  }
+                } catch (e) {
+                  console.log(`Não foi possível verificar issue #${subIssueNumber}: ${e.message}`);
+                }
+              }
+
+              if (openSubIssues.length > 0) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'open'
+                });
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `## ⚠️ Não foi possível fechar este Épico
+
+            As seguintes sub-issues ainda estão abertas:
+
+            ${openSubIssues.map(i => `- ${i}`).join('\n')}
+
+            Por favor, conclua todas as sub-issues antes de fechar o épico.`
+                });
+
+                return;
+              }
+            } else {
+              const timeline = await github.rest.issues.listEventsForTimeline({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                per_page: 100
+              });
+
+              let hasMergedPR = false;
+
+              for (const event of timeline.data) {
+                if (event.event === 'cross-referenced' && event.source?.issue?.pull_request) {
+                  const prNumber = event.source.issue.number;
+                  try {
+                    const pr = await github.rest.pulls.get({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      pull_number: prNumber
+                    });
+
+                    if (pr.data.merged_at) {
+                      const baseBranch = pr.data.base.ref;
+                      if (baseBranch === 'main' || baseBranch === 'release' || baseBranch === 'master') {
+                        hasMergedPR = true;
+                        console.log(`PR #${prNumber} merged em ${baseBranch}`);
+                        break;
+                      }
+                    }
+                  } catch (e) {
+                    console.log(`Erro ao verificar PR #${prNumber}: ${e.message}`);
+                  }
+                }
+              }
+
+              if (!hasMergedPR) {
+                const pulls = await github.rest.pulls.list({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'closed',
+                  per_page: 50
+                });
+
+                for (const pr of pulls.data) {
+                  if (!pr.merged_at) continue;
+
+                  const prBody = (pr.body || '').toLowerCase();
+                  const prTitle = (pr.title || '').toLowerCase();
+
+                  const patterns = [
+                    `#${issueNumber}`,
+                    `closes #${issueNumber}`,
+                    `fixes #${issueNumber}`,
+                    `resolves #${issueNumber}`,
+                    `close #${issueNumber}`,
+                    `fix #${issueNumber}`,
+                    `resolve #${issueNumber}`
+                  ];
+
+                  const isLinked = patterns.some(p =>
+                    prBody.includes(p) || prTitle.includes(p)
+                  );
+
+                  if (isLinked) {
+                    const baseBranch = pr.base.ref;
+                    if (baseBranch === 'main' || baseBranch === 'release' || baseBranch === 'master') {
+                      hasMergedPR = true;
+                      console.log(`PR #${pr.number} menciona issue e foi merged em ${baseBranch}`);
+                      break;
+                    }
+                  }
+                }
+              }
+
+              const hasNoCodeLabel = issue.labels.some(l =>
+                l.name.toLowerCase() === 'no-code' ||
+                l.name.toLowerCase() === 'documentation' ||
+                l.name.toLowerCase() === 'discussion'
+              );
+
+              if (!hasMergedPR && !hasNoCodeLabel) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'open'
+                });
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  body: `## ⚠️ Não foi possível fechar esta tarefa
+
+            Nenhum Pull Request merged foi encontrado vinculado a esta issue.
+
+            ### Como vincular um PR a esta issue:
+
+            No corpo ou título do PR, inclua uma das seguintes keywords:
+            - \`Closes #${issueNumber}\`
+            - \`Fixes #${issueNumber}\`
+            - \`Resolves #${issueNumber}\`
+
+            ### Esta tarefa não requer código?
+
+            Se esta tarefa não envolve mudanças de código (ex: documentação, discussão), adicione a label \`no-code\` e feche novamente.`
+                });
+              }
+            }
+
+  # ============================================
+  # DISCORD NOTIFICATIONS (on: opened, closed, labeled, unlabeled)
+  # ============================================
+  discord-notify-opened:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord Notification - New Issue
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            let issueType = "📋 Task";
+            const titleLower = issue.title.toLowerCase();
+            if (titleLower.includes('[épico]') || titleLower.includes('[epico]')) {
+              issueType = "🎯 Épico";
+            } else if (titleLower.includes('[bug]')) {
+              issueType = "🐛 Bug";
+            }
+
+            const labels = issue.labels.map(l => l.name).join(', ') || 'Nenhuma';
+
+            const embed = {
+              embeds: [{
+                title: `${issueType} criada`,
+                description: `**${issue.title}**`,
+                url: issue.html_url,
+                color: 3066993,
+                fields: [
+                  { name: "Criada por", value: issue.user.login, inline: true },
+                  { name: "Projeto", value: process.env.PROJECT_NAME, inline: true },
+                  { name: "Labels", value: labels, inline: false }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }
+
+  discord-notify-blocked:
+    if: github.event.action == 'labeled' && github.event.label.name == 'blocked'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord Notification - Blocked
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            const embed = {
+              embeds: [{
+                title: "🚧 Issue Bloqueada",
+                description: `**${issue.title}**\n\n⚠️ Verifique o motivo do impedimento na issue.`,
+                url: issue.html_url,
+                color: 15158332,
+                fields: [
+                  { name: "Bloqueada por", value: context.actor, inline: true },
+                  { name: "Projeto", value: process.env.PROJECT_NAME, inline: true }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }
+
+  discord-notify-unblocked:
+    if: github.event.action == 'unlabeled' && github.event.label.name == 'blocked'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord Notification - Unblocked
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            const embed = {
+              embeds: [{
+                title: "✅ Issue Desbloqueada",
+                description: `**${issue.title}**\n\nA issue voltou ao fluxo normal.`,
+                url: issue.html_url,
+                color: 3066993,
+                fields: [
+                  { name: "Desbloqueada por", value: context.actor, inline: true },
+                  { name: "Projeto", value: process.env.PROJECT_NAME, inline: true }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }
+
+  discord-notify-closed:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Discord Notification - Done
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_TASKS }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            let issueType = "📋 Task";
+            const titleLower = issue.title.toLowerCase();
+            if (titleLower.includes('[épico]') || titleLower.includes('[epico]')) {
+              issueType = "🎯 Épico";
+            } else if (titleLower.includes('[bug]')) {
+              issueType = "🐛 Bug";
+            }
+
+            const embed = {
+              embeds: [{
+                title: `🎉 ${issueType} Concluída`,
+                description: `**${issue.title}**`,
+                url: issue.html_url,
+                color: 10181046,
+                fields: [
+                  { name: "Fechada por", value: context.actor, inline: true },
+                  { name: "Projeto", value: process.env.PROJECT_NAME, inline: true }
+                ],
+                timestamp: new Date().toISOString()
+              }]
+            };
+
+            const response = await fetch(process.env.DISCORD_WEBHOOK, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(embed)
+            });
+
+            if (!response.ok) {
+              const text = await response.text();
+              core.setFailed(`Discord API error: ${response.status} - ${text}`);
+            }
